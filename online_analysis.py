@@ -61,6 +61,16 @@ class main_plot_window(PyQt5.QtWidgets.QWidget):
         self.current_filename = PyQt5.QtWidgets.QLineEdit(self)
         self.current_filename.setEnabled(False)
         hbox.addWidget(self.current_filename)
+    
+        # perform full analysis or not
+        apply_full_analysis_layout = PyQt5.QtWidgets.QHBoxLayout()
+        apply_full_analysis_layout_label = PyQt5.QtWidgets.QLabel("Apply full analysis (slow):")
+        self.apply_full_analysis = PyQt5.QtWidgets.QCheckBox()
+        self.apply_full_analysis.setChecked(True)
+
+        apply_full_analysis_layout.addWidget(apply_full_analysis_layout_label)
+        apply_full_analysis_layout.addWidget(self.apply_full_analysis)
+        hbox.addLayout(apply_full_analysis_layout)
 
         self.plot_latest_acquisition_button = PyQt5.QtWidgets.QPushButton("Plot data from latest acquistion")
         hbox.addWidget(self.plot_latest_acquisition_button)
@@ -181,14 +191,18 @@ class main_plot_window(PyQt5.QtWidgets.QWidget):
 
             init_timeseries = voltage_imaging_fcts.generate_timeseries_from_stack(data, whiten_data=True, no_border_pixels=1)
 
-            segmentation_mask = voltage_imaging_fcts.update_segmentation_mask(data)
-            ridge_coefficients = voltage_imaging_fcts.generate_pixel_weights(data, init_timeseries, segmentation_mask)
-            
-            # calculate trace
-            upd_timeseries = np.divide(np.matmul(data.reshape(data.shape[0], -1), ridge_coefficients[1:]), np.sum(ridge_coefficients[1:]))
+            if self.apply_full_analysis.isChecked():
+                segmentation_mask = voltage_imaging_fcts.update_segmentation_mask(data)
+                ridge_coefficients = voltage_imaging_fcts.generate_pixel_weights(data, init_timeseries, segmentation_mask)
+                
+                # calculate trace
+                upd_timeseries = np.divide(np.matmul(data.reshape(data.shape[0], -1), ridge_coefficients[1:]), np.sum(ridge_coefficients[1:]))
 
-            self.curve_i.setData(upd_timeseries, pen=pen)
-                            
+                self.curve_i.setData(upd_timeseries, pen=pen)
+
+            else: 
+                self.curve_i.setData(init_timeseries, pen=pen)
+            
     def plot_latest_acquisition(self):
         # clear data from existing plot
         self.clear_plot()
@@ -216,25 +230,23 @@ class main_plot_window(PyQt5.QtWidgets.QWidget):
 
                 init_timeseries = voltage_imaging_fcts.generate_timeseries_from_stack(data, whiten_data=True, no_border_pixels=1)
 
-                segmentation_mask = voltage_imaging_fcts.update_segmentation_mask(data)
-                ridge_coefficients = voltage_imaging_fcts.generate_pixel_weights(data, init_timeseries, segmentation_mask)
+                if self.apply_full_analysis.isChecked():
+                    segmentation_mask = voltage_imaging_fcts.update_segmentation_mask(data)
+                    ridge_coefficients = voltage_imaging_fcts.generate_pixel_weights(data, init_timeseries, segmentation_mask)
 
-                self.correlation_img = voltage_imaging_fcts.compute_local_correlation_image(data, no_neighbours=8, to_whiten_data=False)
+                    self.correlation_img = voltage_imaging_fcts.compute_local_correlation_image(data, no_neighbours=8, to_whiten_data=False)
 
-                self.segmentation_mask = segmentation_mask
-                self.weighted_coefficients = ridge_coefficients[1:].reshape(segmentation_mask.shape[0], segmentation_mask.shape[1])
+                    self.segmentation_mask = segmentation_mask
+                    self.weighted_coefficients = ridge_coefficients[1:].reshape(segmentation_mask.shape[0], segmentation_mask.shape[1])
 
-                # calculate trace
-                upd_timeseries = np.divide(np.matmul(data.reshape(data.shape[0], -1), ridge_coefficients[1:]), np.sum(ridge_coefficients[1:]))
+                    # calculate trace
+                    upd_timeseries = np.divide(np.matmul(data.reshape(data.shape[0], -1), ridge_coefficients[1:]), np.sum(ridge_coefficients[1:]))
 
-                # background_pixels = voltage_imaging_fcts.background_segmentation(data, all_idxs_laser_on)
+                    self.maincurve.setData(upd_timeseries)
+               
+                else: 
+                    self.maincurve.setData(init_timeseries, pen=pen)
 
-                # # calculate trace
-                # background_trace = np.divide(np.matmul(data.reshape(data.shape[0], -1), np.ravel(background_pixels)), np.sum(background_pixels))
-
-                # self.maincurve.setData(upd_timeseries - background_trace)
-                self.maincurve.setData(upd_timeseries)
-                
             else:
                 print("No matching files found")
         else: 
